@@ -1,3 +1,4 @@
+import dotenv
 from dotenv import load_dotenv
 import pandas as pd
 import os #need to handle env variables this way
@@ -8,12 +9,18 @@ from plaid.model.products import Products
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from time import sleep
+from sqlalchemy import create_engine
 
 load_dotenv() #finds .env file automatically actually if in root of project; don't need a path specified
 
-CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
-SECRET_ID = os.getenv("PLAID_SECRET")
+#print(f"ACCESS_ID loaded: {os.getenv('PLAID_ACCESS_ID')}")
 
+curr_dir = os.getcwd()
+dotenv_path = os.path.join(curr_dir, ".env")
+
+CLIENT_ID = os.getenv("PLAID_CLIENT_ID") #team id which acts as identifier
+SECRET_ID = os.getenv("PLAID_SECRET") #specific id which acts as identifier
+ACCESS_ID = os.getenv("PLAID_ACCESS_ID")
 
 
 configuration = plaid.Configuration( #below is the client which is just a connection object
@@ -32,20 +39,23 @@ pt_request = SandboxPublicTokenCreateRequest(
     institution_id="ins_109508",
     initial_products=[Products('transactions')]
 )
-pt_response = client.sandbox_public_token_create(pt_request)
-# The generated public_token can now be
-# exchanged for an access_token
-exchange_request = ItemPublicTokenExchangeRequest(
-    public_token=pt_response['public_token']
-)
-exchange_response = client.item_public_token_exchange(exchange_request)
-sleep(3)
+if not ACCESS_ID:
+    pt_response = client.sandbox_public_token_create(pt_request)
+    # The generated public_token can now be
+    # exchanged for an access_token
+    exchange_request = ItemPublicTokenExchangeRequest(
+        public_token=pt_response['public_token']
+    )
+    exchange_response = client.item_public_token_exchange(exchange_request)
+    dotenv.set_key(dotenv_path, "PLAID_ACCESS_ID", exchange_response['access_token'])
+    ACCESS_ID = exchange_response['access_token']
+    sleep(3)
 
 # Provide a cursor from your database if you've previously
 # received one for the Item. Leave null if this is your
 # first sync call for this Item. The first request will
 # return a cursor.
-cursor = None
+CURSOR_ID = os.getenv("CURSOR_ID")
 
 #only need added transactions
 added = []
@@ -54,14 +64,14 @@ has_more = True
 
 # Iterate through each page of new transaction updates for item
 while has_more:
-    if cursor:
+    if CURSOR_ID:
         request = TransactionsSyncRequest(
-            access_token=exchange_response['access_token'],
-            cursor=cursor,
+            access_token=ACCESS_ID,
+            cursor=CURSOR_ID,
         )
     else:
         request = TransactionsSyncRequest(
-            access_token=exchange_response['access_token']
+            access_token=ACCESS_ID
         ) 
    
     response = client.transactions_sync(request)
@@ -72,7 +82,8 @@ while has_more:
     has_more = response['has_more']
 
     # Update cursor to the next cursor
-    cursor = response['next_cursor']
+    CURSOR_ID = response['next_cursor']
+    dotenv.set_key(dotenv_path, "CURSOR_ID", CURSOR_ID)
 
 #no db right now
 
@@ -114,3 +125,22 @@ def transaction_func(added):
     return pd.DataFrame(cleaned)
 
 df = transaction_func(added)
+
+if not df.empty:
+    output_dir = os.path.dirname(os.path.dirname(__file__))
+    db_path = os.path.join(output_dir, "output", "expenses.db")
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        existing_transactions = pd.read_sql(sql = "SELECT transaction_id FROM transactions_tbl", con=engine)
+    except:
+        existing_transactions = pd.DataFrame(columns=['transaction_id'])
+    df = df[~df['transaction_id'].isin(list(existing_transactions['transaction_id'].values))]
+    print(f"Rows to write: {len(df)}")
+    print(f"Existing rows: {len(existing_transactions)}")
+    df.to_sql(name='transactions_tbl', con=engine,if_exists='append')
+    print(pd.read_sql("SELECT COUNT(*) FROM transactions_tbl", con=engine))
+
+    
+
+
+
