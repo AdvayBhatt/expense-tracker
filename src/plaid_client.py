@@ -2,6 +2,8 @@ import dotenv
 from dotenv import load_dotenv
 import pandas as pd
 import os #need to handle env variables this way
+import sys
+sys.path.append(os.path.dirname(__file__))
 import plaid
 from plaid.api import plaid_api
 from plaid.model.sandbox_public_token_create_request import SandboxPublicTokenCreateRequest
@@ -10,6 +12,8 @@ from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchan
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from time import sleep
 from sqlalchemy import create_engine
+from llm_categorization import categorize_transaction
+
 
 load_dotenv() #finds .env file automatically actually if in root of project; don't need a path specified
 
@@ -126,6 +130,12 @@ def transaction_func(added):
 
 df = transaction_func(added)
 
+df['gemini_category'] = df[['merchant_name', 'primary_category', 'detailed_category', 'confidence_level']].apply(
+lambda row: categorize_transaction(row['merchant_name'], row['primary_category'], row['detailed_category']) if row['confidence_level'] == "LOW" else row['detailed_category'], 
+axis=1) #need three columns for categorization use apply row so that we don't feed three seperate inputs (cols) to apply as a Series and instead put in one thing (each row) to operate on
+
+print(df[['merchant_name', 'gemini_category']].head(10))
+
 if not df.empty:
     output_dir = os.path.dirname(os.path.dirname(__file__))
     db_path = os.path.join(output_dir, "output", "expenses.db")
@@ -139,8 +149,3 @@ if not df.empty:
     print(f"Existing rows: {len(existing_transactions)}")
     df.to_sql(name='transactions_tbl', con=engine,if_exists='append')
     print(pd.read_sql("SELECT COUNT(*) FROM transactions_tbl", con=engine))
-
-    
-
-
-
