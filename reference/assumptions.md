@@ -8,11 +8,11 @@ The Plaid API returns a large number of fields per transaction. The following do
 
 | Field | Reason |
 |-------|--------|
-| `transaction_id` | Unique identifier — used for deduplication |
+| `transaction_id` | Unique identifier which is used for deduplication |
 | `account_id` | Identifies which account the transaction belongs to |
 | `amount` | Core metric — spending amount |
 | `date` | Primary date field for time-series analysis |
-| `merchant_name` | Plaid's cleaned merchant name — preferred over raw `name` |
+| `merchant_name` | Plaid's cleaned merchant name which is preferred over raw `name` |
 | `name` | Fallback when `merchant_name` is null |
 | `payment_channel` | How the payment was made (in-store, online, other) |
 | `pending` | Used to identify transactions not yet posted |
@@ -48,7 +48,7 @@ The Plaid API returns a large number of fields per transaction. The following do
 - Gemini is called for every transaction regardless of Plaid confidence level, to ensure consistent clean labels across all transactions
 - Gemini is instructed to return exactly one of: Food, Transport, Entertainment, Shopping, Bills, Other
 - Transfers, refunds, and credit card payments are included in the data since they are part of the real spending lifecycle
-- Negative amounts represent credits or refunds — included but may skew monthly totals
+- Negative amounts represent credits or refunds which is included but may skew monthly totals
 
 ---
 
@@ -56,5 +56,5 @@ The Plaid API returns a large number of fields per transaction. The following do
 
 - The Plaid sandbox is used for all development and demo purposes — no real bank accounts are connected
 - A new Plaid Item (sandbox bank connection) is created on first run and the access token is stored in `.env`
-- The cursor is not persisted between GitHub Actions runs — each run fetches all transactions, with deduplication handling repeated records
+- The cursor is not persisted between GitHub Actions runs meaning each run fetches all transactions, with deduplication handling repeated records
 - Daily sync is sufficient given Plaid checks for new transactions 1-4 times per day depending on institution
