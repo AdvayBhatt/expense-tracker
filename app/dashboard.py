@@ -21,7 +21,6 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 result = supabase.table("transactions").select("*").execute()
 
 df = pd.DataFrame(result.data)
-st.write(df.head())
 
 st.title('Transactions Dashboard')
 
