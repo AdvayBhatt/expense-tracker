@@ -10,7 +10,7 @@ The Plaid API returns a large number of fields per transaction. The following do
 |-------|--------|
 | `transaction_id` | Unique identifier which is used for deduplication |
 | `account_id` | Identifies which account the transaction belongs to |
-| `amount` | Core metric — spending amount |
+| `amount` | Core metric is spending amount |
 | `date` | Primary date field for time-series analysis |
 | `merchant_name` | Plaid's cleaned merchant name which is preferred over raw `name` |
 | `name` | Fallback when `merchant_name` is null |
