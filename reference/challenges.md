@@ -56,15 +56,6 @@
 
 ---
 
-### 7. dashboard.py in wrong directory
-**Problem:** There were two files named `dashboard.py` — one in `app/` (correct) and one in `src/` (leftover). Streamlit was running the empty `src/dashboard.py` instead of the real one.
-
-**Solution:** Deleted `src/dashboard.py` and always run from the project root with `streamlit run app/dashboard.py`.
-
-**Learning:** Keep entry point files clearly separated from module files. `src/` should contain only reusable Python modules, not runnable scripts or apps.
-
----
-
 ## Key Technical Decisions
 
 | Decision | Chosen | Rejected | Reason |
