@@ -19,7 +19,7 @@ def categorize_transaction(merchant_name, primary_category, detailed_category):
     
     response_1 = client.models.generate_content(         
         model="gemini-3.1-flash-lite",         
-        contents= f"Given a transaction at '{merchant_name}' categorized as '{primary_category} - {detailed_category}', return a single clean spending category like Food, Transport, Entertainment, Shopping, Bills, or Other. Return only the category name, nothing else.") 
+        contents= f"Given a transaction at '{merchant_name}' categorized as '{primary_category} - {detailed_category}', return a single clean spending category of exactly one of these categories and nothing else: Food, Transport, Entertainment, Shopping, Bills, or Other. Return only the category name, nothing else.") 
     sleep(4)
     return response_1.text
 

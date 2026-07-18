@@ -13,6 +13,7 @@ from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from time import sleep
 from sqlalchemy import create_engine
 from llm_categorization import categorize_transaction
+from supabase import create_client
 
 
 load_dotenv() #finds .env file automatically actually if in root of project; don't need a path specified
@@ -25,6 +26,10 @@ dotenv_path = os.path.join(curr_dir, ".env")
 CLIENT_ID = os.getenv("PLAID_CLIENT_ID") #team id which acts as identifier
 SECRET_ID = os.getenv("PLAID_SECRET") #specific id which acts as identifier
 ACCESS_ID = os.getenv("PLAID_ACCESS_ID")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 configuration = plaid.Configuration( #below is the client which is just a connection object
@@ -89,7 +94,7 @@ while has_more:
     CURSOR_ID = response['next_cursor']
     dotenv.set_key(dotenv_path, "CURSOR_ID", CURSOR_ID)
 
-#no db right now
+
 
 # method to convert 'added' list into pd dataframe
 
@@ -130,22 +135,27 @@ def transaction_func(added):
 
 df = transaction_func(added)
 
-df['gemini_category'] = df[['merchant_name', 'primary_category', 'detailed_category', 'confidence_level']].apply(
-lambda row: categorize_transaction(row['merchant_name'], row['primary_category'], row['detailed_category']) if row['confidence_level'] == "LOW" else row['detailed_category'], 
-axis=1) #need three columns for categorization use apply row so that we don't feed three seperate inputs (cols) to apply as a Series and instead put in one thing (each row) to operate on
+#print(df[['merchant_name', 'gemini_category']].head(10))
 
-print(df[['merchant_name', 'gemini_category']].head(10))
+#DATABASE ENTRY BLOCK
 
 if not df.empty:
     output_dir = os.path.dirname(os.path.dirname(__file__))
-    db_path = os.path.join(output_dir, "output", "expenses.db")
-    engine = create_engine(f"sqlite:///{db_path}")
+    #db_path = os.path.join(output_dir, "output", "expenses.db")
+    #engine = create_engine(f"sqlite:///{db_path}")
+    df['gemini_category'] = df[['merchant_name', 'primary_category', 'detailed_category', 'confidence_level']].apply(
+    lambda row: categorize_transaction(row['merchant_name'], row['primary_category'], row['detailed_category']), axis=1) 
+    #need three columns for categorization use apply row so that we don't feed three seperate inputs (cols) to apply as a Series and instead put in one thing (each row) to operate on
+
     try:
-        existing_transactions = pd.read_sql(sql = "SELECT transaction_id FROM transactions_tbl", con=engine)
+        existing_transactions = supabase.table("transactions").select("transaction_id").execute()
+        existing_ids = [row['transaction_id'] for row in existing_transactions.data]
     except:
-        existing_transactions = pd.DataFrame(columns=['transaction_id'])
-    df = df[~df['transaction_id'].isin(list(existing_transactions['transaction_id'].values))]
-    print(f"Rows to write: {len(df)}")
-    print(f"Existing rows: {len(existing_transactions)}")
-    df.to_sql(name='transactions_tbl', con=engine,if_exists='append')
-    print(pd.read_sql("SELECT COUNT(*) FROM transactions_tbl", con=engine))
+        existing_ids = []
+    df = df[~df['transaction_id'].isin(existing_ids)]
+    #print(f"Rows to write: {len(df)}")
+    #print(f"Existing rows: {len(existing_transactions)}")
+    df['date'] = df['date'].astype(str)
+    records = df.to_dict('records')
+    supabase.table("transactions").insert(records).execute()
+   # print(pd.read_sql("SELECT COUNT(*) FROM transactions_tbl", con=engine))

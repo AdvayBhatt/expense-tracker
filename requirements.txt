@@ -3,3 +3,5 @@ matplotlib>=3.5.0
 numpy>=1.21.0
 plaid-python
 python-dotenv
+supabase
+psycopg2-binary
