@@ -1,65 +1,154 @@
-The project here is an expense tracker employs the Plaid API to get expense data. I will craft this project with a outcome-focused roadmap:
+# Expense Tracker
 
-1. Scope:
-- I am seeking to answer various questions about my personal finance: How much do I spend per month? How can I categorize it (food, rent, entertainment, etc...)? What does the trend of my spending look like over time? How do my expenses compare to my income? How can I visualize my spending habits?
-- metrics include monthly spending, category of spending, trending of expenses, some estimated threshold ratio of expenses to income
-- expected decisions: cut back on highest unnecessary category if trend is increasing in cost and/or my expenses threshold ratio is too high
-- goal: help me identify inefficent spending habits and optimize income
+An automated personal finance dashboard that pulls real bank transaction data, categorizes spending using AI, and visualizes habits over time.
 
-2. Process
-- I aim to split the process into two phases
-- PHASE I:
- - I will use Plaid API to retrieve expenses (for demo purposes, the data will be fake transactions)
- - I will create infrastructure to demonstrate continual retrieval of banking data remains stable
- - I will then create an interface (like Streamlit) to add various visuals using the metrics as thresholds
- - When those threshold are not met, have systems to send notifications
-- PHASE II:
- - I may use linear regression (features: category, maybe binary variable like in_school, card type, etc..; target: monthly spending cost) to predict future spending
- - I will show preprocessing, training, eval, deployment, notes, and one-page business case
- - I will build a lightweight pipeline: ingest → preprocess → train → serve → monitor.
- - I will include signifigance testing, A/B testing, randomization, and discussions of Type I, Type II, and power where necessary
-- END: I will include a "how to implement in production" section with data refresh cadence, monitoring metric, and rollback criteria
+**Live demo:** https://expense-tracker-6uytz4wayp84iajhvgvzkc.streamlit.app/
 
-3. Production readiness
-- Eventually would like maintainable system running at scale daily across users. Will use model versioning, testing, CI/CD, containerization, and performance monitoring.
-- See if other tools are needed: Docker and a minimal monitoring stack (alert on feature drift or data schema changes)
-- Need monitoring so the model doesn’t degrade: Implement a basic dashboard tracking prediction distributions and key input statistics.
+---
 
+## What It Does
 
-4. Business fluency and data storytelling
-- I will build a one-page dashboard focused on visualizing my spending habits and a one-slide executive summary with clear next steps.
-- I will add a clear “recommended action” and a short implementation plan to every deliverable
-- I will provide validation examples, a rollback plan, and a small pilot with control groups.
-- I will practice framing project as business questions: Did new spending strategy over one period increase the amount saved? 
+- Connects to bank accounts via the **Plaid API** to retrieve transaction history
+- Uses **Gemini AI** to categorize each transaction into clean spending labels (Food, Transport, Bills, etc.)
+- Stores transactions in **Supabase** (PostgreSQL) with deduplication to avoid double-counting
+- Syncs automatically every day via **GitHub Actions**
+- Displays spending trends, category breakdowns, and KPIs in a **Streamlit** dashboard deployed on Streamlit Cloud
 
+---
 
-5. Ethics, governance & measurement
-- Include privacy & security checks for the project (data protection, ensuring no data leakage, compliance)
-- Define a simple measurement plan for each model: baseline metric, expected uplift, experiment duration, and success criteria.
-- For each project, prototype a minimal viable product (MVP) to show early signals. For every project, include a one-page “risks & mitigations” with data lineage, privacy concerns, and rollback triggers. 
+## Architecture
 
+```
+Plaid API (sandbox)
+    ↓
+plaid_client.py — fetches transactions, runs Gemini categorization
+    ↓
+Supabase (PostgreSQL) — cloud database with deduplication
+    ↓
+GitHub Actions — triggers daily sync at 8AM UTC
+    ↓
+Streamlit Cloud — live dashboard reads from Supabase
+```
 
-# File Structure
+---
 
+## Tech Stack
+
+| Layer | Tool |
+|-------|------|
+| Data source | Plaid API (sandbox) |
+| AI categorization | Google Gemini 3.1 Flash Lite |
+| Database | Supabase (PostgreSQL) |
+| Dashboard | Streamlit + Plotly |
+| Scheduling | GitHub Actions (cron) |
+| Deployment | Streamlit Community Cloud |
+| Language | Python 3.11 |
+
+---
+
+## Key Design Decisions
+
+**Cursor-based sync:** Plaid's `transactions/sync` endpoint uses a cursor to track which transactions have already been retrieved. On each run, you only get new transactions since the last sync are fetched, so the pipeline is efficient.
+
+**AI categorization strategy:** Plaid provides its own category labels but with varying confidence levels. Gemini is called for every transaction to produce labels that will make sense (Food, Transport, Bills, Shopping, Entertainment, Other), replacing Plaid's raw codes.
+
+**Deduplication:** Before writing to Supabase, existing `transaction_id` values are queried and new records are filtered to only actually new transactions, preventing duplicates across runs.
+
+**Supabase over SQLite:** SQLite cannot persist data between GitHub Actions runs (stateless environment). Supabase provides a hosted PostgreSQL instance accessible from both the sync pipeline and the Streamlit dashboard.
+
+---
+
+## Project Structure
+
+```
 expense-tracker/
-├─ input/
-│  └─ raw/                    #raw JSON responses from Plaid API
-├─ processing/
-│  └─ cleaning.ipynb          #exploratory cleaning, visible output
-├─ output/
-│  └─ expenses.db             #SQLite database, clean processed data
-├─ src/
-│  ├─ plaid_client.py         #Plaid API calls
-│  ├─ notifications.py        #alert/notification logic
-│  └─ ml/
-│     ├─ train.py             #model training
-│     └─ predict.py           #model inference
-├─ app/
-│  └─ dashboard.py            #Streamlit app
-├─ reference/
-│  └─ assumptions.md          #project assumptions, data notes
-├─ .env                       #API keys, never committed
-├─ .gitignore                 #includes .env, __pycache__, .db optionally
-├─ requirements.txt
-└─ README.md
+├── app/
+│   └── dashboard.py          # Streamlit dashboard (deployed on Streamlit Cloud)
+├── src/
+│   ├── plaid_client.py       # Plaid API sync + Gemini categorization + Supabase write
+│   ├── llm_categorization.py # Gemini AI categorization logic
+│   ├── notifications.py      # Placeholder for future email alerts
+│   └── ml/
+│       ├── train.py          # Placeholder for Phase II regression model
+│       └── predict.py        # Placeholder for Phase II predictions
+├── processing/
+│   └── cleaning.ipynb        # Exploratory data analysis notebook
+├── reference/
+│   ├── assumptions.md        # Data field selection rationale
+│   ├── problems.md           # Engineering decisions log
+│   └── file_structure.md     # Project structure notes
+├── .github/
+│   └── workflows/
+│       └── daily_sync.yml    # GitHub Actions daily sync schedule
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
 
+---
+
+## Setup
+
+### Prerequisites
+- Python 3.11+
+- Plaid developer account (free sandbox)
+- Google AI Studio account (free Gemini API key)
+- Supabase account (free tier)
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```
+PLAID_CLIENT_ID=your_plaid_client_id
+PLAID_SECRET=your_plaid_sandbox_secret
+PLAID_ACCESS_ID=your_plaid_access_token
+GEMINI_API_KEY=your_gemini_api_key
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_secret_key
+```
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+```
+
+### Run the sync pipeline
+
+```bash
+python src/plaid_client.py
+```
+
+### Run the dashboard locally
+
+```bash
+streamlit run app/dashboard.py
+```
+
+---
+
+## Dashboard Features
+
+- **Monthly spend bar chart** — total spending per month
+- **Category breakdown** — stacked bar chart showing spending by AI-assigned category per month
+- **Spending trend** — line chart showing monthly spend over time
+- **KPI cards** — latest monthly, weekly, and daily spend with month-over-month delta
+
+---
+
+## Planned Future Work (Phase II)
+
+- **Linear regression model** to predict next month's spending based on category trends and contextual features (e.g., in-school vs summer)
+- **Email notifications** via Gmail OAuth when monthly spending exceeds a defined threshold
+- **Multiple bank account support** — extend pipeline to handle multiple Plaid Items (e.g., Bank of America + Citibank)
+- **Real bank connection** — currently uses Plaid sandbox with synthetic transactions; production deployment would connect to real accounts
+- **Spending recommendations** — AI-generated advice based on category trends
+
+---
+
+## Notes
+
+- All transaction data shown in the live demo is synthetic (Plaid sandbox)
+- Real bank credentials are never committed to the repository
+- API keys are stored as GitHub Secrets for the Actions workflow and as Streamlit Secrets for the dashboard
